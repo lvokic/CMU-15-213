@@ -5,7 +5,8 @@ TEAM = bovik
 VERSION = 1
 HANDINDIR = /afs/cs.cmu.edu/academic/class/15213-f01/malloclab/handin
 
-CC = $(if $(CSAPP_GCC32),$(CSAPP_GCC32),gcc)
+LOCAL_GCC32 := $(abspath ../../.local-csapp/bin/gcc32)
+CC = $(if $(CSAPP_GCC32),$(CSAPP_GCC32),$(if $(wildcard $(LOCAL_GCC32)),$(LOCAL_GCC32),gcc))
 CFLAGS = -Wall -O2 -m32
 
 OBJS = mdriver.o mm.o memlib.o fsecs.o fcyc.o clock.o ftimer.o

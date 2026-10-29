@@ -14,6 +14,7 @@
 
 use strict 'vars';
 use Getopt::Std;
+use Cwd 'abs_path';
 
 use lib ".";
 use Driverlib;
@@ -25,6 +26,12 @@ my $USE_BTEST = 1;
 $| = 1;      # Flush stdout each time
 umask(0077); # Files created by the user in tmp readable only by that user
 $ENV{PATH} = "/usr/local/bin:/usr/bin:/bin";
+
+# The driver compiles in a temporary directory, so pass the local toolchain
+# path explicitly when the user has not selected another compiler.
+if (!$ENV{CSAPP_GCC32} && -x '../../.local-csapp/bin/gcc32') {
+    $ENV{CSAPP_GCC32} = abs_path('../../.local-csapp/bin/gcc32');
+}
 
 #
 # usage - print help message and terminate

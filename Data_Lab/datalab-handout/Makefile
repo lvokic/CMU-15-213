@@ -1,7 +1,8 @@
 #
 # Makefile that builds btest and other helper programs for the CS:APP data lab
 # 
-CC = $(if $(CSAPP_GCC32),$(CSAPP_GCC32),gcc)
+LOCAL_GCC32 := $(abspath ../../.local-csapp/bin/gcc32)
+CC = $(if $(CSAPP_GCC32),$(CSAPP_GCC32),$(if $(wildcard $(LOCAL_GCC32)),$(LOCAL_GCC32),gcc))
 CFLAGS = -O -Wall -m32
 LIBS = -lm
 
