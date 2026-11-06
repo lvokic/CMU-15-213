@@ -3,7 +3,7 @@
     "configurations": [
         {
             "name": "Linux GCC",
-            "compilerPath": "/usr/bin/gcc",
+            "compilerPath": "/usr/bin/g++",
             "intelliSenseMode": "linux-gcc-x64",
             "cStandard": "gnu11",
             "cppStandard": "gnu++17",

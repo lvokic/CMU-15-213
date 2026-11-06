@@ -4,13 +4,18 @@
 #
 CC = gcc
 CFLAGS = -g -Wall -Werror -std=c99 -m64
+CXX = g++
+CXXFLAGS = -g -Wall -Werror -std=c++17 -m64
 
 all: csim test-trans tracegen
 	# Generate a handin tar file each time you compile
-	-tar -cvf ${USER}-handin.tar  csim.c trans.c 
+	-tar -cvf ${USER}-handin.tar  csim.cpp cache.hpp trans.c 
 
-csim: csim.c cachelab.c cachelab.h
-	$(CC) $(CFLAGS) -o csim csim.c cachelab.c -lm 
+csim: csim.cpp cache.hpp cachelab.o
+	$(CXX) $(CXXFLAGS) -o csim csim.cpp cachelab.o -lm
+
+cachelab.o: cachelab.c cachelab.h
+	$(CC) $(CFLAGS) -c -o $@ cachelab.c
 
 test-trans: test-trans.c trans.o cachelab.c cachelab.h
 	$(CC) $(CFLAGS) -o test-trans test-trans.c cachelab.c trans.o 

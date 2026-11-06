@@ -12,6 +12,141 @@
 
 int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 
+void block_transpose(int M, int N, int A[N][M], int B[M][N], int *row_start, int *col_start) {
+    int tmp;
+    if (*row_start + 18 >= N && *col_start + 18 >= M) {
+        for (int i = *row_start; i < N; ++i) {
+            for (int j = *col_start; j < M; ++j) {
+                tmp = A[i][j];
+                B[j][i] = tmp;
+            }
+        }
+        *row_start = N;
+        *col_start = M;
+    } else if (*row_start + 18 >= N) {
+        for (int i = *row_start; i < N; ++i) {
+            for (int j = *col_start; j < *col_start + 18; ++j) {
+                tmp = A[i][j];
+                B[j][i] = tmp;
+            }
+        }
+        *col_start += 18;
+    } else if (*col_start + 18 >= M) {
+        for (int i = *row_start; i < *row_start + 18; ++i) {
+            for (int j = *col_start; j < M; ++j) {
+                tmp = A[i][j];
+                B[j][i] = tmp;
+            }
+        }
+        *row_start += 18;
+        *col_start = 0;
+    } else {
+        for (int i = *row_start; i < *row_start + 18; ++i) {
+            for (int j = *col_start; j < *col_start + 18; ++j) {
+                tmp = A[i][j];
+                B[j][i] = tmp;
+            }
+        }
+        *col_start += 18;
+    }
+}
+
+/* Read each 32x32 tile row before writing its transposed values. */
+static void block_transpose_32(int M, int N, int A[N][M], int B[M][N],
+                               int *row_start, int *col_start) {
+    int i;
+    int a0, a1, a2, a3, a4, a5, a6, a7;
+
+    for (i = *row_start; i < *row_start + 8; ++i) {
+        a0 = A[i][*col_start];
+        a1 = A[i][*col_start + 1];
+        a2 = A[i][*col_start + 2];
+        a3 = A[i][*col_start + 3];
+        a4 = A[i][*col_start + 4];
+        a5 = A[i][*col_start + 5];
+        a6 = A[i][*col_start + 6];
+        a7 = A[i][*col_start + 7];
+        B[*col_start][i] = a0;
+        B[*col_start + 1][i] = a1;
+        B[*col_start + 2][i] = a2;
+        B[*col_start + 3][i] = a3;
+        B[*col_start + 4][i] = a4;
+        B[*col_start + 5][i] = a5;
+        B[*col_start + 6][i] = a6;
+        B[*col_start + 7][i] = a7;
+    }
+    *col_start += 8;
+    if (*col_start == M) {
+        *col_start = 0;
+        *row_start += 8;
+    }
+}
+
+/* Transpose an 8x8 tile using B to stage its upper-right quadrant. */
+static void block_transpose_64(int M, int N, int A[N][M], int B[M][N],
+                               int *row_start, int *col_start) {
+    int i;
+    int a0, a1, a2, a3, a4, a5, a6, a7;
+
+    /* Store A00 in place and stage A01 in B's upper-right quadrant. */
+    for (i = *row_start; i < *row_start + 4; ++i) {
+        a0 = A[i][*col_start];
+        a1 = A[i][*col_start + 1];
+        a2 = A[i][*col_start + 2];
+        a3 = A[i][*col_start + 3];
+        a4 = A[i][*col_start + 4];
+        a5 = A[i][*col_start + 5];
+        a6 = A[i][*col_start + 6];
+        a7 = A[i][*col_start + 7];
+        B[*col_start][i] = a0;
+        B[*col_start + 1][i] = a1;
+        B[*col_start + 2][i] = a2;
+        B[*col_start + 3][i] = a3;
+        B[*col_start][i + 4] = a4;
+        B[*col_start + 1][i + 4] = a5;
+        B[*col_start + 2][i + 4] = a6;
+        B[*col_start + 3][i + 4] = a7;
+    }
+
+    /* Exchange staged A01 with A10, one B row at a time. */
+    for (i = *col_start; i < *col_start + 4; ++i) {
+        a0 = B[i][*row_start + 4];
+        a1 = B[i][*row_start + 5];
+        a2 = B[i][*row_start + 6];
+        a3 = B[i][*row_start + 7];
+        a4 = A[*row_start + 4][i];
+        a5 = A[*row_start + 5][i];
+        a6 = A[*row_start + 6][i];
+        a7 = A[*row_start + 7][i];
+        B[i][*row_start + 4] = a4;
+        B[i][*row_start + 5] = a5;
+        B[i][*row_start + 6] = a6;
+        B[i][*row_start + 7] = a7;
+        B[i + 4][*row_start] = a0;
+        B[i + 4][*row_start + 1] = a1;
+        B[i + 4][*row_start + 2] = a2;
+        B[i + 4][*row_start + 3] = a3;
+    }
+
+    /* Transpose the remaining A11 quadrant. */
+    for (i = *row_start + 4; i < *row_start + 8; ++i) {
+        a0 = A[i][*col_start + 4];
+        a1 = A[i][*col_start + 5];
+        a2 = A[i][*col_start + 6];
+        a3 = A[i][*col_start + 7];
+        B[*col_start + 4][i] = a0;
+        B[*col_start + 5][i] = a1;
+        B[*col_start + 6][i] = a2;
+        B[*col_start + 7][i] = a3;
+    }
+
+    *col_start += 8;
+    if (*col_start == M) {
+        *col_start = 0;
+        *row_start += 8;
+    }
+}
+
 /* 
  * transpose_submit - This is the solution transpose function that you
  *     will be graded on for Part B of the assignment. Do not change
@@ -22,6 +157,15 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+    int row_start = 0, col_start = 0;
+    while (row_start != N && col_start != M) {
+        if (M == 32 && N == 32)
+            block_transpose_32(M, N, A, B, &row_start, &col_start);
+        else if (M == 64 && N == 64)
+            block_transpose_64(M, N, A, B, &row_start, &col_start);
+        else
+            block_transpose(M, N, A, B, &row_start, &col_start);
+    }
 }
 
 /* 
