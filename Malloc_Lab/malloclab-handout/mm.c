@@ -39,6 +39,8 @@ team_t team = {
 #define HEADER_SIZE (ALIGN(sizeof(size_t)))
 #define FOOTER_SIZE (ALIGN(sizeof(size_t)))
 
+static char *rover = NULL;
+
 static char *header_of(void *ptr)
 {
     return (char *)ptr - HEADER_SIZE;
@@ -143,11 +145,34 @@ static void* find_fit(size_t required_size) {
     return NULL;
 }
 
+static void* next_fit(size_t required_size) {
+    char* heap_start = mem_heap_lo();
+    char* heap_end = heap_start + mem_heapsize();
+    if (heap_start == heap_end)
+        return NULL;
+    if (rover == NULL || rover >= heap_end)
+        rover = heap_start;
+    char* start = rover;
+    while (1) {
+        char* ptr = rover + HEADER_SIZE;
+        if (!block_allocated(ptr) && block_size(ptr) >= required_size) {
+            return ptr;
+        }
+        rover += block_size(ptr);
+        if (rover >= heap_end)
+            rover = heap_start;
+        if (rover == start)
+            break;
+    }
+    return NULL;
+}
+
 /* 
  * mm_init - initialize the malloc package.
  */
 int mm_init(void)
 {
+    rover = NULL;
     return 0;
 }
 
@@ -165,7 +190,7 @@ void *mm_malloc(size_t size)
                           & ~(size_t)(ALIGNMENT - 1);
     if (total_size > INT_MAX)
         return NULL;
-    void* block = find_fit(total_size);
+    void* block = next_fit(total_size);
     if (block != NULL) {
         size_t original_size = block_size(block);
         size_t remaining     = original_size - total_size;
@@ -199,6 +224,7 @@ void mm_free(void *ptr)
 {
     if (ptr == NULL)
         return;
+    rover = NULL;
     char* header = header_of(ptr);
     char* footer = footer_of(ptr);
     uint64_t free_value = (uint64_t)block_size(ptr);
@@ -209,7 +235,7 @@ void mm_free(void *ptr)
 }
 
 /*
- * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
+ * mm_realloc - Grow in place when possible, otherwise allocate and copy.
  */
 void *mm_realloc(void *ptr, size_t size)
 {
@@ -220,13 +246,59 @@ void *mm_realloc(void *ptr, size_t size)
         return NULL;
     }
 
-    size_t old_capacity = block_size(ptr) - HEADER_SIZE - FOOTER_SIZE;
+    size_t old_size = block_size(ptr);
+    size_t old_capacity = old_size - HEADER_SIZE - FOOTER_SIZE;
+    if (size <= old_capacity)
+        return ptr;
+
+    if (size > SIZE_MAX - HEADER_SIZE - FOOTER_SIZE - (ALIGNMENT - 1))
+        return NULL;
+    size_t required_size = (size + HEADER_SIZE + FOOTER_SIZE + (ALIGNMENT - 1))
+                           & ~(size_t)(ALIGNMENT - 1);
+    if (required_size > INT_MAX)
+        return NULL;
+
+    char *header = header_of(ptr);
+    char *heap_end = (char *)mem_heap_lo() + mem_heapsize();
+    char *next_header = header + old_size;
+    size_t available_size = old_size;
+
+    /* Include the next physical block when it is free. */
+    if (next_header < heap_end && !allocated(next_header))
+        available_size += block_size_from_ptr(next_header);
+
+    /* If the combined space reaches the heap end, grow it in place. */
+    if (available_size < required_size && header + available_size == heap_end) {
+        size_t extra = required_size - available_size;
+        if (extra <= INT_MAX && mem_sbrk((int)extra) != (void *)-1)
+            available_size = required_size;
+    }
+
+    if (available_size >= required_size) {
+        size_t allocated_size = available_size;
+        size_t remaining = available_size - required_size;
+
+        if (remaining >= HEADER_SIZE + FOOTER_SIZE + ALIGNMENT) {
+            char *remaining_header = header + required_size;
+            *(uint64_t *)remaining_header = (uint64_t)remaining;
+            *(uint64_t *)(remaining_header + remaining - FOOTER_SIZE) =
+                (uint64_t)remaining;
+            allocated_size = required_size;
+        }
+
+        uint64_t header_value = (uint64_t)allocated_size | 1;
+        *(uint64_t *)header = header_value;
+        *(uint64_t *)(header + allocated_size - FOOTER_SIZE) = header_value;
+
+        /* The next-fit cursor may have pointed inside the merged block. */
+        rover = NULL;
+        return ptr;
+    }
+
     void *new_ptr = mm_malloc(size);
     if (new_ptr == NULL) return NULL;
-    
+
     size_t copy_size = old_capacity;
-    if (size < copy_size)
-        copy_size = size;
     memcpy(new_ptr, ptr, copy_size);
     mm_free(ptr);
     
