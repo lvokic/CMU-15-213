@@ -10,6 +10,7 @@
  */
 #include <stdio.h>
 #include <sys/time.h>
+#include <time.h>
 #include "ftimer.h"
 
 /* function prototypes */
@@ -39,17 +40,25 @@ double ftimer_itimer(ftimer_test_funct f, void *argp, int n)
  */
 double ftimer_gettod(ftimer_test_funct f, void *argp, int n)
 {
-    int i;
-    struct timeval stv, etv;
-    double diff;
+    int i, batch = n;
+    size_t runs = 0;
+    struct timespec start, end;
+    double elapsed;
 
-    gettimeofday(&stv, NULL);
-    for (i = 0; i < n; i++) 
-	f(argp);
-    gettimeofday(&etv,NULL);
-    diff = 1E3*(etv.tv_sec - stv.tv_sec) + 1E-3*(etv.tv_usec-stv.tv_usec);
-    diff /= n;
-    return (1E-3*diff);
+    /* Short traces need enough runs to produce a measurable duration. */
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    do {
+        for (i = 0; i < batch; i++)
+            f(argp);
+        runs += (size_t)batch;
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        elapsed = (end.tv_sec - start.tv_sec) +
+                  (end.tv_nsec - start.tv_nsec) * 1e-9;
+        if (batch < 1048576)
+            batch *= 2;
+    } while (elapsed < 0.01);
+
+    return elapsed / runs;
 }
 
 

@@ -21,6 +21,7 @@ Shell_Lab/shlab-handout/mysplit
 Shell_Lab/shlab-handout/mystop
 Shell_Lab/shlab-handout/myint
 Malloc_Lab/malloclab-handout/mdriver
+Malloc_Lab/malloclab-handout/.build64/
 Proxy_Lab/proxylab-handout/proxy
 Proxy_Lab/proxylab-handout/tiny/tiny
 Proxy_Lab/proxylab-handout/tiny/cgi-bin/adder

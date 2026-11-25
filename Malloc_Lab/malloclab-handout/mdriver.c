@@ -14,6 +14,7 @@
 #include <string.h>
 #include <assert.h>
 #include <float.h>
+#include <stdint.h>
 #include <time.h>
 
 #include "mm.h"
@@ -31,7 +32,7 @@
 #define LINENUM(i) (i+5) /* cnvt trace request nums to linenums (origin 1) */
 
 /* Returns true if p is ALIGNMENT-byte aligned */
-#define IS_ALIGNED(p)  ((((unsigned int)(p)) % ALIGNMENT) == 0)
+#define IS_ALIGNED(p)  (((uintptr_t)(p) % ALIGNMENT) == 0)
 
 /****************************** 
  * The key compound data types 
@@ -362,7 +363,7 @@ int main(int argc, char **argv)
 	printf("perfidx:%.0f\n", perfindex);
     }
 
-    exit(0);
+    exit(errors ? 1 : 0);
 }
 
 
@@ -406,8 +407,7 @@ static int add_range(range_t **ranges, char *lo, int size,
 
     /* The payload must not overlap any other payloads */
     for (p = *ranges;  p != NULL;  p = p->next) {
-        if ((lo >= p->lo && lo <= p-> hi) ||
-            (hi >= p->lo && hi <= p->hi)) {
+        if (lo <= p->hi && hi >= p->lo) {
 	    sprintf(msg, "Payload (%p:%p) overlaps another payload (%p:%p)\n",
 		    lo, hi, p->lo, p->hi);
 	    malloc_error(tracenum, opnum, msg);
@@ -926,11 +926,11 @@ static void printresults(int n, stats_t *stats)
     double util = 0;
 
     /* Print the individual results for each trace */
-    printf("%5s%7s %5s%8s%10s%6s\n", 
+    printf("%5s%7s %5s%8s%12s%10s\n",
 	   "trace", " valid", "util", "ops", "secs", "Kops");
     for (i=0; i < n; i++) {
 	if (stats[i].valid) {
-	    printf("%2d%10s%5.0f%%%8.0f%10.6f%6.0f\n", 
+	    printf("%2d%10s%5.0f%%%8.0f%12.9f%10.0f\n",
 		   i,
 		   "yes",
 		   stats[i].util*100.0,
@@ -942,7 +942,7 @@ static void printresults(int n, stats_t *stats)
 	    util += stats[i].util;
 	}
 	else {
-	    printf("%2d%10s%6s%8s%10s%6s\n", 
+	    printf("%2d%10s%6s%8s%12s%10s\n",
 		   i,
 		   "no",
 		   "-",
@@ -954,7 +954,7 @@ static void printresults(int n, stats_t *stats)
 
     /* Print the aggregate results for the set of traces */
     if (errors == 0) {
-	printf("%12s%5.0f%%%8.0f%10.6f%6.0f\n", 
+	printf("%12s%5.0f%%%8.0f%12.9f%10.0f\n",
 	       "Total       ",
 	       (util/n)*100.0,
 	       ops, 
@@ -962,7 +962,7 @@ static void printresults(int n, stats_t *stats)
 	       (ops/1e3)/secs);
     }
     else {
-	printf("%12s%6s%8s%10s%6s\n", 
+	printf("%12s%6s%8s%12s%10s\n",
 	       "Total       ",
 	       "-", 
 	       "-", 
